@@ -62,20 +62,9 @@
       return null;
     }
     const cartRow = getCartRow(element);
-    const sources = [
-      element,
-      cartRow
-    ].filter(Boolean);
+    const sources = [element, cartRow].filter(Boolean);
     for (const source of sources) {
-      const productId = source.getAttribute(
-        "data-product-id"
-      ) || source.getAttribute(
-        "data-productid"
-      ) || source.getAttribute(
-        "data-pid"
-      ) || source.getAttribute(
-        "data-sku"
-      );
+      const productId = source.getAttribute("data-product-id") || source.getAttribute("data-productid") || source.getAttribute("data-pid") || source.getAttribute("data-sku");
       if (productId) {
         return String(productId);
       }
@@ -117,9 +106,7 @@
       );
       return null;
     }
-    const rawQuantity = quantityElement.getAttribute(
-      "data-quantity"
-    ) || quantityElement.value || quantityElement.textContent || quantityElement.innerText;
+    const rawQuantity = quantityElement.getAttribute("data-quantity") || quantityElement.value || quantityElement.textContent || quantityElement.innerText;
     const quantity = parseInt(
       String(rawQuantity).trim(),
       10
@@ -132,6 +119,77 @@
       return null;
     }
     return quantity;
+  };
+  var sendReplaceCart = (productId, quantity) => {
+    const SalesforceInteractions2 = getSDK();
+    if (!SalesforceInteractions2) {
+      return;
+    }
+    if (!productId) {
+      console.warn(
+        "[MCP Cart] ReplaceCart sem Product ID."
+      );
+      return;
+    }
+    const newQuantity = Number(quantity);
+    if (!Number.isFinite(newQuantity) || newQuantity <= 0) {
+      console.warn(
+        "[MCP Cart] Quantidade inv\xE1lida para ReplaceCart:",
+        quantity
+      );
+      return;
+    }
+    const interactionName = SalesforceInteractions2.CartInteractionName.ReplaceCart;
+    const payload = {
+      interaction: {
+        name: interactionName,
+        lineItem: {
+          catalogObjectType: "Product",
+          catalogObjectId: String(productId),
+          quantity: newQuantity,
+          price: 30.99,
+          currency: "BRL"
+        }
+      }
+    };
+    console.log(
+      "[MCP Cart] ================================="
+    );
+    console.log(
+      "[MCP Cart] ENVIANDO REPLACE CART"
+    );
+    console.log(
+      "[MCP Cart] Interaction:",
+      interactionName
+    );
+    console.log(
+      "[MCP Cart] Product ID:",
+      productId
+    );
+    console.log(
+      "[MCP Cart] Nova quantidade:",
+      newQuantity
+    );
+    console.log(
+      "[MCP Cart] Payload:",
+      payload
+    );
+    console.log(
+      "[MCP Cart] ================================="
+    );
+    return SalesforceInteractions2.sendEvent(payload).then((result) => {
+      console.log(
+        "[MCP Cart] \u2705 ReplaceCart enviado.",
+        result
+      );
+      return result;
+    }).catch((error) => {
+      console.error(
+        "[MCP Cart] \u274C Erro ao enviar ReplaceCart:",
+        error
+      );
+      throw error;
+    });
   };
   var sendRemoveFromCart = (productId, quantity = 1) => {
     const SalesforceInteractions2 = getSDK();
@@ -153,35 +211,6 @@
       return;
     }
     const interactionName = SalesforceInteractions2.CartInteractionName.RemoveFromCart;
-    console.log(
-      "[MCP Cart] ================================="
-    );
-    console.log(
-      "[MCP Cart] ENVIANDO REMOVE FROM CART"
-    );
-    console.log(
-      "[MCP Cart] Interaction:",
-      interactionName
-    );
-    console.log(
-      "[MCP Cart] Product ID:",
-      productId
-    );
-    console.log(
-      "[MCP Cart] Quantity:",
-      removeQuantity
-    );
-    console.log(
-      "[MCP Cart] Anonymous ID:",
-      SalesforceInteractions2.getAnonymousId?.()
-    );
-    console.log(
-      "[MCP Cart] Consents:",
-      SalesforceInteractions2.getConsents?.()
-    );
-    console.log(
-      "[MCP Cart] ================================="
-    );
     const payload = {
       interaction: {
         name: interactionName,
@@ -193,8 +222,29 @@
       }
     };
     console.log(
+      "[MCP Cart] ================================="
+    );
+    console.log(
+      "[MCP Cart] \u{1F5D1}\uFE0F ENVIANDO REMOVE FROM CART"
+    );
+    console.log(
+      "[MCP Cart] Interaction:",
+      interactionName
+    );
+    console.log(
+      "[MCP Cart] Product ID:",
+      productId
+    );
+    console.log(
+      "[MCP Cart] Quantity removida:",
+      removeQuantity
+    );
+    console.log(
       "[MCP Cart] Payload:",
       payload
+    );
+    console.log(
+      "[MCP Cart] ================================="
     );
     return SalesforceInteractions2.sendEvent(payload).then((result) => {
       console.log(
@@ -232,14 +282,25 @@
       );
       return;
     }
-    const currentQuantity = getCurrentQuantity(button);
+    const quantityBefore = getCurrentQuantity(button);
     console.log(
       "[MCP Cart] Quantidade antes:",
-      currentQuantity
+      quantityBefore
     );
-    sendRemoveFromCart(
+    if (!quantityBefore || quantityBefore <= 1) {
+      console.log(
+        "[MCP Cart] Quantidade j\xE1 est\xE1 em 1. N\xE3o enviando ReplaceCart."
+      );
+      return;
+    }
+    const quantityAfter = quantityBefore - 1;
+    console.log(
+      "[MCP Cart] Quantidade depois:",
+      quantityAfter
+    );
+    sendReplaceCart(
       productId,
-      1
+      quantityAfter
     );
   };
   var handleRemoveClick = (event) => {
@@ -340,14 +401,65 @@
     }, 2e3);
   };
 
+  // src/helpers/consent.js
+  var CONSENT_GROUP_PREFIX = "groupcookieJ9ng";
+  var getConsentFromPrivacyTools = () => {
+    if (!window.pToolsCookieManager || !window.pToolsCookieManager.myCache) {
+      console.warn(
+        "[MCP Consent] pToolsCookieManager ainda n\xE3o est\xE1 dispon\xEDvel."
+      );
+      return null;
+    }
+    const entry = [
+      ...window.pToolsCookieManager.myCache.entries()
+    ].find(
+      ([key2]) => key2.startsWith(CONSENT_GROUP_PREFIX)
+    );
+    if (!entry) {
+      console.warn(
+        "[MCP Consent] Grupo de Prefer\xEAncias n\xE3o encontrado."
+      );
+      return null;
+    }
+    const [key, value] = entry;
+    console.log(
+      "[MCP Consent] Chave encontrada:",
+      key
+    );
+    console.log(
+      "[MCP Consent] Valor:",
+      value
+    );
+    return value;
+  };
+  var getConsentStatus = (SalesforceInteractions2) => {
+    const consent = getConsentFromPrivacyTools();
+    if (consent === "accepted") {
+      console.log(
+        "[MCP Consent] Prefer\xEAncias ACEITAS \u2192 OptIn"
+      );
+      return SalesforceInteractions2.ConsentStatus.OptIn;
+    }
+    if (consent === "rejected") {
+      console.log(
+        "[MCP Consent] Prefer\xEAncias REJEITADAS \u2192 OptOut"
+      );
+      return SalesforceInteractions2.ConsentStatus.OptOut;
+    }
+    console.warn(
+      "[MCP Consent] Consentimento n\xE3o encontrado."
+    );
+    return null;
+  };
+
   // src/main.js
-  console.log("[MCP] =================================");
+  console.log("[MCP]");
   console.log("[MCP] MAIN.JS CARREGADO");
   console.log(
     "[MCP] hostname:",
     window.location.hostname
   );
-  console.log("[MCP] =================================");
+  console.log("[MCP]");
   var waitForSalesforceInteractions = (timeout = 15e3) => {
     return new Promise((resolve, reject) => {
       const start2 = Date.now();
@@ -389,16 +501,36 @@
       "[MCP] Consents ANTES do init:",
       SalesforceInteractions2.getConsents?.()
     );
-    await SalesforceInteractions2.init({
-      cookieDomain: domain,
-      consents: [
+    const consentStatus = getConsentStatus(
+      SalesforceInteractions2
+    );
+    console.log(
+      "[MCP] Consent Status detectado:",
+      consentStatus
+    );
+    const initConfig = {
+      cookieDomain: domain
+    };
+    if (consentStatus) {
+      initConfig.consents = [
         {
           purpose: SalesforceInteractions2.mcis.ConsentPurpose.Personalization,
           provider: "Gentrop",
-          status: SalesforceInteractions2.ConsentStatus.OptIn
+          status: consentStatus
         }
-      ]
-    });
+      ];
+      console.log(
+        "[MCP] Consent configurado no init:",
+        initConfig.consents
+      );
+    } else {
+      console.warn(
+        "[MCP] Nenhum consentimento identificado."
+      );
+    }
+    await SalesforceInteractions2.init(
+      initConfig
+    );
     window.__MCP_SALESFORCE_INITIALIZED = true;
     console.log(
       "[MCP] ================================="

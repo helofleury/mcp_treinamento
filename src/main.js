@@ -1,14 +1,15 @@
 import { cookieDomain } from "./helpers/cookieDomain";
 import { makeConfig } from "./salesforce-interactions/config/makeConfig";
 import { handleSPAPageChange } from "./helpers/handleSpaPageChange";
+import { getConsentStatus } from "./helpers/consent";
 
-console.log("[MCP] =================================");
+console.log("[MCP]");
 console.log("[MCP] MAIN.JS CARREGADO");
 console.log(
   "[MCP] hostname:",
   window.location.hostname
 );
-console.log("[MCP] =================================");
+console.log("[MCP]");
 
 const waitForSalesforceInteractions = (
   timeout = 15000
@@ -77,12 +78,31 @@ const initializeSDK = async (
   );
 
   /*
-   * Inicialização do Salesforce Personalization.
+   * Lê o consentimento do Privacy Tools.
    */
-  await SalesforceInteractions.init({
-    cookieDomain: domain,
+  const consentStatus =
+    getConsentStatus(
+      SalesforceInteractions
+    );
 
-    consents: [
+  console.log(
+    "[MCP] Consent Status detectado:",
+    consentStatus
+  );
+
+  /*
+   * Configuração inicial do SDK.
+   */
+  const initConfig = {
+    cookieDomain: domain
+  };
+
+  /*
+   * Só envia a configuração de consentimento
+   * se conseguirmos identificar o estado.
+   */
+  if (consentStatus) {
+    initConfig.consents = [
       {
         purpose:
           SalesforceInteractions
@@ -92,13 +112,26 @@ const initializeSDK = async (
 
         provider: "Gentrop",
 
-        status:
-          SalesforceInteractions
-            .ConsentStatus
-            .OptIn
+        status: consentStatus
       }
-    ]
-  });
+    ];
+
+    console.log(
+      "[MCP] Consent configurado no init:",
+      initConfig.consents
+    );
+  } else {
+    console.warn(
+      "[MCP] Nenhum consentimento identificado."
+    );
+  }
+
+  /*
+   * Inicialização do Salesforce Personalization.
+   */
+  await SalesforceInteractions.init(
+    initConfig
+  );
 
   window.__MCP_SALESFORCE_INITIALIZED =
     true;

@@ -1,14 +1,11 @@
 const CART_SELECTORS = {
-  decrement:
-    ".item-quantity-change-decrement",
+  decrement: ".item-quantity-change-decrement",
 
-  remove:
-    ".item-link-remove, .icon-remove"
+  remove: ".item-link-remove, .icon-remove"
 };
 
 const getSDK = () => {
-  const sdk =
-    window.SalesforceInteractions;
+  const sdk = window.SalesforceInteractions;
 
   if (!sdk) {
     console.error(
@@ -52,53 +49,31 @@ const getProductId = (element) => {
     return null;
   }
 
-  const cartRow =
-    getCartRow(element);
+  const cartRow = getCartRow(element);
 
-  const sources = [
-    element,
-    cartRow
-  ].filter(Boolean);
+  const sources = [element, cartRow].filter(Boolean);
 
-  /*
-   * Primeiro tenta atributos conhecidos.
-   */
   for (const source of sources) {
     const productId =
-      source.getAttribute(
-        "data-product-id"
-      ) ||
-      source.getAttribute(
-        "data-productid"
-      ) ||
-      source.getAttribute(
-        "data-pid"
-      ) ||
-      source.getAttribute(
-        "data-sku"
-      );
+      source.getAttribute("data-product-id") ||
+      source.getAttribute("data-productid") ||
+      source.getAttribute("data-pid") ||
+      source.getAttribute("data-sku");
 
     if (productId) {
       return String(productId);
     }
   }
 
-  /*
-   * Depois tenta IDs HTML.
-   */
   for (const source of sources) {
-    const elementId =
-      source.getAttribute("id");
+    const elementId = source.getAttribute("id");
 
     if (!elementId) {
       continue;
     }
 
-    const parts =
-      elementId.split("-");
-
-    const lastPart =
-      parts[parts.length - 1];
+    const parts = elementId.split("-");
+    const lastPart = parts[parts.length - 1];
 
     if (lastPart) {
       return String(lastPart);
@@ -111,11 +86,8 @@ const getProductId = (element) => {
 /**
  * Obtém a quantidade atual do item.
  */
-const getCurrentQuantity = (
-  element
-) => {
-  const cartRow =
-    getCartRow(element);
+const getCurrentQuantity = (element) => {
+  const cartRow = getCartRow(element);
 
   if (!cartRow) {
     console.warn(
@@ -125,16 +97,15 @@ const getCurrentQuantity = (
     return null;
   }
 
-  const quantityElement =
-    cartRow.querySelector(
-      [
-        ".item-quantity-change-value",
-        ".quantity",
-        "[data-quantity]",
-        "input[type='number']",
-        "input"
-      ].join(", ")
-    );
+  const quantityElement = cartRow.querySelector(
+    [
+      ".item-quantity-change-value",
+      ".quantity",
+      "[data-quantity]",
+      "input[type='number']",
+      "input"
+    ].join(", ")
+  );
 
   if (!quantityElement) {
     console.warn(
@@ -146,18 +117,15 @@ const getCurrentQuantity = (
   }
 
   const rawQuantity =
-    quantityElement.getAttribute(
-      "data-quantity"
-    ) ||
+    quantityElement.getAttribute("data-quantity") ||
     quantityElement.value ||
     quantityElement.textContent ||
     quantityElement.innerText;
 
-  const quantity =
-    parseInt(
-      String(rawQuantity).trim(),
-      10
-    );
+  const quantity = parseInt(
+    String(rawQuantity).trim(),
+    10
+  );
 
   if (Number.isNaN(quantity)) {
     console.warn(
@@ -172,20 +140,128 @@ const getCurrentQuantity = (
 };
 
 /**
- * Envia Remove From Cart.
+ * Envia ReplaceCart.
  *
- * Decremento:
- *   quantity = 1
+ * Usado quando o usuário altera a quantidade
+ * do produto, por exemplo:
  *
- * Lixeira:
- *   quantity = quantidade existente
+ * 3 -> 2
+ * 2 -> 1
+ */
+const sendReplaceCart = (
+  productId,
+  quantity
+) => {
+  const SalesforceInteractions = getSDK();
+
+  if (!SalesforceInteractions) {
+    return;
+  }
+
+  if (!productId) {
+    console.warn(
+      "[MCP Cart] ReplaceCart sem Product ID."
+    );
+
+    return;
+  }
+
+  const newQuantity = Number(quantity);
+
+  if (
+    !Number.isFinite(newQuantity) ||
+    newQuantity <= 0
+  ) {
+    console.warn(
+      "[MCP Cart] Quantidade inválida para ReplaceCart:",
+      quantity
+    );
+
+    return;
+  }
+
+  const interactionName =
+    SalesforceInteractions
+      .CartInteractionName
+      .ReplaceCart;
+
+  const payload = {
+    interaction: {
+      name: interactionName,
+
+      lineItem: {
+        catalogObjectType: "Product",
+        catalogObjectId: String(productId),
+        quantity: newQuantity,
+        price: 30.99,
+        currency: "BRL"
+      }
+    }
+  };
+
+  console.log(
+    "[MCP Cart] ================================="
+  );
+
+  console.log(
+    "[MCP Cart] ENVIANDO REPLACE CART"
+  );
+
+  console.log(
+    "[MCP Cart] Interaction:",
+    interactionName
+  );
+
+  console.log(
+    "[MCP Cart] Product ID:",
+    productId
+  );
+
+  console.log(
+    "[MCP Cart] Nova quantidade:",
+    newQuantity
+  );
+
+  console.log(
+    "[MCP Cart] Payload:",
+    payload
+  );
+
+  console.log(
+    "[MCP Cart] ================================="
+  );
+
+  return SalesforceInteractions
+    .sendEvent(payload)
+    .then((result) => {
+      console.log(
+        "[MCP Cart] ✅ ReplaceCart enviado.",
+        result
+      );
+
+      return result;
+    })
+    .catch((error) => {
+      console.error(
+        "[MCP Cart] ❌ Erro ao enviar ReplaceCart:",
+        error
+      );
+
+      throw error;
+    });
+};
+
+/**
+ * Envia RemoveFromCart.
+ *
+ * Usado SOMENTE quando o usuário
+ * clica na lixeira.
  */
 const sendRemoveFromCart = (
   productId,
   quantity = 1
 ) => {
-  const SalesforceInteractions =
-    getSDK();
+  const SalesforceInteractions = getSDK();
 
   if (!SalesforceInteractions) {
     return;
@@ -199,8 +275,7 @@ const sendRemoveFromCart = (
     return;
   }
 
-  const removeQuantity =
-    Number(quantity);
+  const removeQuantity = Number(quantity);
 
   if (
     !Number.isFinite(removeQuantity) ||
@@ -219,12 +294,26 @@ const sendRemoveFromCart = (
       .CartInteractionName
       .RemoveFromCart;
 
+  const payload = {
+    interaction: {
+      name: interactionName,
+
+      lineItem: {
+        catalogObjectType: "Product",
+
+        catalogObjectId: String(productId),
+
+        quantity: removeQuantity
+      }
+    }
+  };
+
   console.log(
     "[MCP Cart] ================================="
   );
 
   console.log(
-    "[MCP Cart] ENVIANDO REMOVE FROM CART"
+    "[MCP Cart] 🗑️ ENVIANDO REMOVE FROM CART"
   );
 
   console.log(
@@ -238,52 +327,19 @@ const sendRemoveFromCart = (
   );
 
   console.log(
-    "[MCP Cart] Quantity:",
+    "[MCP Cart] Quantity removida:",
     removeQuantity
   );
-
-  console.log(
-    "[MCP Cart] Anonymous ID:",
-    SalesforceInteractions
-      .getAnonymousId?.()
-  );
-
-  console.log(
-    "[MCP Cart] Consents:",
-    SalesforceInteractions
-      .getConsents?.()
-  );
-
-  console.log(
-    "[MCP Cart] ================================="
-  );
-
-  const payload = {
-    interaction: {
-      name: interactionName,
-
-      lineItem: {
-        catalogObjectType:
-          "Product",
-
-        catalogObjectId:
-          String(productId),
-
-        quantity:
-          removeQuantity
-      }
-    }
-  };
 
   console.log(
     "[MCP Cart] Payload:",
     payload
   );
 
-  /*
-   * Retornamos a Promise para facilitar
-   * diagnóstico de erro.
-   */
+  console.log(
+    "[MCP Cart] ================================="
+  );
+
   return SalesforceInteractions
     .sendEvent(payload)
     .then((result) => {
@@ -307,16 +363,20 @@ const sendRemoveFromCart = (
 /**
  * Clique no decremento.
  *
- * Sempre representa a remoção
- * de UMA unidade.
+ * Exemplo:
+ *
+ * quantidade antes = 3
+ * clique no "-"
+ * quantidade depois = 2
+ *
+ * Envia ReplaceCart com quantity = 2.
  */
 const handleDecrementClick = (
   event
 ) => {
-  const button =
-    event.target.closest(
-      CART_SELECTORS.decrement
-    );
+  const button = event.target.closest(
+    CART_SELECTORS.decrement
+  );
 
   if (!button) {
     return;
@@ -326,8 +386,7 @@ const handleDecrementClick = (
     "[MCP Cart] 🔥 DECREMENTO CAPTURADO"
   );
 
-  const productId =
-    getProductId(button);
+  const productId = getProductId(button);
 
   console.log(
     "[MCP Cart] Product ID:",
@@ -343,37 +402,54 @@ const handleDecrementClick = (
     return;
   }
 
-  const currentQuantity =
+  const quantityBefore =
     getCurrentQuantity(button);
 
   console.log(
     "[MCP Cart] Quantidade antes:",
-    currentQuantity
+    quantityBefore
   );
 
-  /*
-   * Clique no "-"
-   * = remove exatamente 1 unidade.
-   */
-  sendRemoveFromCart(
+  if (
+    !quantityBefore ||
+    quantityBefore <= 1
+  ) {
+    console.log(
+      "[MCP Cart] Quantidade já está em 1. Não enviando ReplaceCart."
+    );
+
+    return;
+  }
+
+  const quantityAfter =
+    quantityBefore - 1;
+
+  console.log(
+    "[MCP Cart] Quantidade depois:",
+    quantityAfter
+  );
+
+  sendReplaceCart(
     productId,
-    1
+    quantityAfter
   );
 };
 
 /**
  * Clique na lixeira.
  *
- * Remove a quantidade inteira
- * que existia antes da operação.
+ * Exemplo:
+ *
+ * quantidade = 3
+ * clique na lixeira
+ * RemoveFromCart quantity = 3
  */
 const handleRemoveClick = (
   event
 ) => {
-  const button =
-    event.target.closest(
-      CART_SELECTORS.remove
-    );
+  const button = event.target.closest(
+    CART_SELECTORS.remove
+  );
 
   if (!button) {
     return;
@@ -383,8 +459,7 @@ const handleRemoveClick = (
     "[MCP Cart] 🗑️ LIXEIRA CAPTURADA"
   );
 
-  const productId =
-    getProductId(button);
+  const productId = getProductId(button);
 
   console.log(
     "[MCP Cart] Product ID:",
@@ -408,17 +483,9 @@ const handleRemoveClick = (
     currentQuantity
   );
 
-  /*
-   * Se conseguirmos descobrir a quantidade,
-   * enviamos ela.
-   *
-   * Exemplo:
-   * 4 -> 0
-   * quantity = 4
-   */
   const quantityToRemove =
     currentQuantity &&
-    currentQuantity > 0
+      currentQuantity > 0
       ? currentQuantity
       : 1;
 
@@ -430,10 +497,6 @@ const handleRemoveClick = (
 
 /**
  * Instala os listeners nativos.
- *
- * Usamos document porque o checkout
- * da VTEX é SPA e recria elementos
- * dinamicamente.
  */
 const installCartListeners = () => {
   if (
@@ -458,8 +521,7 @@ const installCartListeners = () => {
     true
   );
 
-  window.__MCP_CART_LISTENERS_INSTALLED =
-    true;
+  window.__MCP_CART_LISTENERS_INSTALLED = true;
 
   console.log(
     "[MCP Cart] ================================="
@@ -484,13 +546,6 @@ const installCartListeners = () => {
   );
 };
 
-/**
- * Global do Sitemap.
- *
- * Não usamos SalesforceInteractions.listener()
- * aqui. O listener nativo acima já captura
- * os eventos diretamente no document.
- */
 export const pageTypeGlobal = {
   name: "global",
 
@@ -501,8 +556,4 @@ export const pageTypeGlobal = {
   }
 };
 
-/**
- * Instala os listeners assim que este módulo
- * for carregado.
- */
 installCartListeners();
