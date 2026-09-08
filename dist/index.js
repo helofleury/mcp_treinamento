@@ -450,18 +450,17 @@
   };
 
   // src/helpers/consent.js
-  var CONSENT_GROUP_PREFIX = "groupcookieJ9ng";
+  var CONSENT_GROUP_PREFIX = "groupcookiej9ng";
   var getConsentFromPrivacyTools = () => {
-    if (!window.pToolsCookieManager || !window.pToolsCookieManager.myCache) {
+    const cookieManager = window.pToolsCookieManager;
+    if (!cookieManager || !cookieManager.myCache) {
       console.warn(
         "[MCP Consent] pToolsCookieManager ainda n\xE3o est\xE1 dispon\xEDvel."
       );
       return null;
     }
-    const entry = [
-      ...window.pToolsCookieManager.myCache.entries()
-    ].find(
-      ([key2]) => key2.startsWith(CONSENT_GROUP_PREFIX)
+    const entry = [...cookieManager.myCache.entries()].find(
+      ([key2]) => String(key2).toLowerCase().startsWith(CONSENT_GROUP_PREFIX.toLowerCase())
     );
     if (!entry) {
       console.warn(
@@ -470,32 +469,28 @@
       return null;
     }
     const [key, value] = entry;
-    console.log(
-      "[MCP Consent] Chave encontrada:",
-      key
-    );
-    console.log(
-      "[MCP Consent] Valor:",
-      value
-    );
+    console.log("[MCP Consent] Chave encontrada:", key);
+    console.log("[MCP Consent] Valor encontrado:", value);
     return value;
   };
   var getConsentStatus = (SalesforceInteractions2) => {
     const consent = getConsentFromPrivacyTools();
-    if (consent === "accepted") {
+    console.log("[MCP Consent] Valor bruto:", consent);
+    if (String(consent).toLowerCase() === "accepted") {
       console.log(
         "[MCP Consent] Prefer\xEAncias ACEITAS \u2192 OptIn"
       );
       return SalesforceInteractions2.ConsentStatus.OptIn;
     }
-    if (consent === "rejected") {
+    if (String(consent).toLowerCase() === "rejected") {
       console.log(
         "[MCP Consent] Prefer\xEAncias REJEITADAS \u2192 OptOut"
       );
       return SalesforceInteractions2.ConsentStatus.OptOut;
     }
     console.warn(
-      "[MCP Consent] Consentimento n\xE3o encontrado."
+      "[MCP Consent] Consentimento n\xE3o reconhecido:",
+      consent
     );
     return null;
   };
@@ -503,10 +498,7 @@
   // src/main.js
   console.log("[MCP]");
   console.log("[MCP] MAIN.JS CARREGADO");
-  console.log(
-    "[MCP] hostname:",
-    window.location.hostname
-  );
+  console.log("[MCP] hostname:", window.location.hostname);
   console.log("[MCP]");
   var waitForSalesforceInteractions = (timeout = 15e3) => {
     return new Promise((resolve, reject) => {
@@ -514,9 +506,7 @@
       const check = () => {
         const sdk = window.SalesforceInteractions;
         if (sdk) {
-          console.log(
-            "[MCP] SalesforceInteractions encontrado"
-          );
+          console.log("[MCP] SalesforceInteractions encontrado");
           resolve(sdk);
           return;
         }
@@ -534,9 +524,7 @@
     });
   };
   var syncConsent = (SalesforceInteractions2) => {
-    const consentStatus = getConsentStatus(
-      SalesforceInteractions2
-    );
+    const consentStatus = getConsentStatus(SalesforceInteractions2);
     console.log(
       "[MCP Consent] Status detectado:",
       consentStatus
@@ -570,9 +558,7 @@
       console.log(
         "[MCP] SDK j\xE1 foi inicializado pelo MCP."
       );
-      syncConsent(
-        SalesforceInteractions2
-      );
+      syncConsent(SalesforceInteractions2);
       return SalesforceInteractions2;
     }
     const domain = cookieDomain();
@@ -584,9 +570,7 @@
       "[MCP] Consents ANTES do init:",
       SalesforceInteractions2.getConsents?.()
     );
-    const consentStatus = getConsentStatus(
-      SalesforceInteractions2
-    );
+    const consentStatus = getConsentStatus(SalesforceInteractions2);
     console.log(
       "[MCP] Consent Status detectado:",
       consentStatus
@@ -611,9 +595,7 @@
         "[MCP] Nenhum consentimento identificado no init."
       );
     }
-    await SalesforceInteractions2.init(
-      initConfig
-    );
+    await SalesforceInteractions2.init(initConfig);
     window.__MCP_SALESFORCE_INITIALIZED = true;
     console.log(
       "[MCP] ================================="
@@ -636,9 +618,7 @@
     console.log(
       "[MCP] ================================="
     );
-    syncConsent(
-      SalesforceInteractions2
-    );
+    syncConsent(SalesforceInteractions2);
     return SalesforceInteractions2;
   };
   var initializeSitemap = (SalesforceInteractions2) => {
@@ -661,9 +641,7 @@
     console.log(
       "[MCP] Inicializando Sitemap..."
     );
-    SalesforceInteractions2.initSitemap(
-      config
-    );
+    SalesforceInteractions2.initSitemap(config);
     console.log(
       "[MCP] Sitemap inicializado."
     );

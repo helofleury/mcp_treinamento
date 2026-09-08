@@ -5,27 +5,18 @@ import { getConsentStatus } from "./helpers/consent";
 
 console.log("[MCP]");
 console.log("[MCP] MAIN.JS CARREGADO");
-console.log(
-  "[MCP] hostname:",
-  window.location.hostname
-);
+console.log("[MCP] hostname:", window.location.hostname);
 console.log("[MCP]");
 
-const waitForSalesforceInteractions = (
-  timeout = 15000
-) => {
+const waitForSalesforceInteractions = (timeout = 15000) => {
   return new Promise((resolve, reject) => {
     const start = Date.now();
 
     const check = () => {
-      const sdk =
-        window.SalesforceInteractions;
+      const sdk = window.SalesforceInteractions;
 
       if (sdk) {
-        console.log(
-          "[MCP] SalesforceInteractions encontrado"
-        );
-
+        console.log("[MCP] SalesforceInteractions encontrado");
         resolve(sdk);
         return;
       }
@@ -38,7 +29,6 @@ const waitForSalesforceInteractions = (
               "ms"
           )
         );
-
         return;
       }
 
@@ -50,26 +40,18 @@ const waitForSalesforceInteractions = (
 };
 
 /**
- * Atualiza o consentimento do SalesforceInteractions
- * com base no estado atual detectado pelo Privacy Tools.
+ * Sincroniza o consentimento do Privacy Tools
+ * com o SalesforceInteractions.
  */
-const syncConsent = (
-  SalesforceInteractions
-) => {
-  const consentStatus =
-    getConsentStatus(
-      SalesforceInteractions
-    );
+const syncConsent = (SalesforceInteractions) => {
+  const consentStatus = getConsentStatus(SalesforceInteractions);
 
   console.log(
     "[MCP Consent] Status detectado:",
     consentStatus
   );
 
-  /*
-   * Se não conseguimos identificar o consentimento,
-   * NÃO assumimos OptIn.
-   */
+  // Nunca assume OptIn.
   if (!consentStatus) {
     console.warn(
       "[MCP Consent] Nenhum consentimento identificado."
@@ -80,10 +62,7 @@ const syncConsent = (
 
   const consent = {
     purpose:
-      SalesforceInteractions
-        .mcis
-        .ConsentPurpose
-        .Personalization,
+      SalesforceInteractions.mcis.ConsentPurpose.Personalization,
 
     provider: "Gentrop",
 
@@ -95,9 +74,6 @@ const syncConsent = (
     consent
   );
 
-  /*
-   * Atualiza o estado do consentimento no SDK.
-   */
   SalesforceInteractions.updateConsents?.([
     consent
   ]);
@@ -110,26 +86,13 @@ const syncConsent = (
   return consentStatus;
 };
 
-const initializeSDK = async (
-  SalesforceInteractions
-) => {
-  /*
-   * Evita inicialização duplicada.
-   */
-  if (
-    window.__MCP_SALESFORCE_INITIALIZED
-  ) {
+const initializeSDK = async (SalesforceInteractions) => {
+  if (window.__MCP_SALESFORCE_INITIALIZED) {
     console.log(
       "[MCP] SDK já foi inicializado pelo MCP."
     );
 
-    /*
-     * Mesmo se já estiver inicializado,
-     * sincronizamos novamente o consentimento.
-     */
-    syncConsent(
-      SalesforceInteractions
-    );
+    syncConsent(SalesforceInteractions);
 
     return SalesforceInteractions;
   }
@@ -147,12 +110,10 @@ const initializeSDK = async (
   );
 
   /*
-   * Detecta o consentimento REAL antes do init.
+   * Detecta o consentimento REAL no Privacy Tools.
    */
   const consentStatus =
-    getConsentStatus(
-      SalesforceInteractions
-    );
+    getConsentStatus(SalesforceInteractions);
 
   console.log(
     "[MCP] Consent Status detectado:",
@@ -164,21 +125,14 @@ const initializeSDK = async (
   };
 
   /*
-   * IMPORTANTE:
-   *
-   * Só configuramos consent se o Privacy Tools
-   * realmente informar um estado.
-   *
-   * Nunca colocamos OptIn como fallback.
+   * Só envia consent no init se realmente
+   * existir um estado conhecido.
    */
   if (consentStatus) {
     initConfig.consents = [
       {
         purpose:
-          SalesforceInteractions
-            .mcis
-            .ConsentPurpose
-            .Personalization,
+          SalesforceInteractions.mcis.ConsentPurpose.Personalization,
 
         provider: "Gentrop",
 
@@ -197,14 +151,11 @@ const initializeSDK = async (
   }
 
   /*
-   * Inicialização do Salesforce Personalization.
+   * Inicializa o SDK.
    */
-  await SalesforceInteractions.init(
-    initConfig
-  );
+  await SalesforceInteractions.init(initConfig);
 
-  window.__MCP_SALESFORCE_INITIALIZED =
-    true;
+  window.__MCP_SALESFORCE_INITIALIZED = true;
 
   console.log(
     "[MCP] ================================="
@@ -234,19 +185,15 @@ const initializeSDK = async (
   );
 
   /*
-   * Garante que o estado do SDK esteja
-   * sincronizado com o Privacy Tools.
+   * Garante que o SDK esteja sincronizado
+   * com o Privacy Tools.
    */
-  syncConsent(
-    SalesforceInteractions
-  );
+  syncConsent(SalesforceInteractions);
 
   return SalesforceInteractions;
 };
 
-const initializeSitemap = (
-  SalesforceInteractions
-) => {
+const initializeSitemap = (SalesforceInteractions) => {
   const config = makeConfig();
 
   console.log(
@@ -267,18 +214,13 @@ const initializeSitemap = (
     config.global
   );
 
-  /*
-   * Configura mudanças de rota da VTEX.
-   */
   handleSPAPageChange();
 
   console.log(
     "[MCP] Inicializando Sitemap..."
   );
 
-  SalesforceInteractions.initSitemap(
-    config
-  );
+  SalesforceInteractions.initSitemap(config);
 
   console.log(
     "[MCP] Sitemap inicializado."
@@ -295,9 +237,6 @@ const initializeSitemap = (
   );
 };
 
-/**
- * Inicia o MCP.
- */
 const start = async () => {
   try {
     const SalesforceInteractions =
@@ -308,16 +247,10 @@ const start = async () => {
       SalesforceInteractions
     );
 
-    /*
-     * Inicializa o SDK.
-     */
     await initializeSDK(
       SalesforceInteractions
     );
 
-    /*
-     * Inicializa Sitemap.
-     */
     initializeSitemap(
       SalesforceInteractions
     );

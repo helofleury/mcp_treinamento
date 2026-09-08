@@ -1,76 +1,62 @@
-const CONSENT_GROUP_PREFIX =
-    "groupcookieJ9ng";
+const CONSENT_GROUP_PREFIX = "groupcookiej9ng";
 
 const getConsentFromPrivacyTools = () => {
-    if (
-        !window.pToolsCookieManager ||
-        !window.pToolsCookieManager.myCache
-    ) {
-        console.warn(
-            "[MCP Consent] pToolsCookieManager ainda não está disponível."
-        );
+  const cookieManager = window.pToolsCookieManager;
 
-        return null;
-    }
-
-    const entry = [
-        ...window.pToolsCookieManager.myCache.entries()
-    ].find(([key]) =>
-        key.startsWith(CONSENT_GROUP_PREFIX)
+  if (!cookieManager || !cookieManager.myCache) {
+    console.warn(
+      "[MCP Consent] pToolsCookieManager ainda não está disponível."
     );
+    return null;
+  }
 
-    if (!entry) {
-        console.warn(
-            "[MCP Consent] Grupo de Preferências não encontrado."
-        );
+  const entry = [...cookieManager.myCache.entries()].find(
+    ([key]) =>
+      String(key)
+        .toLowerCase()
+        .startsWith(CONSENT_GROUP_PREFIX.toLowerCase())
+  );
 
-        return null;
-    }
-
-    const [key, value] = entry;
-
-    console.log(
-        "[MCP Consent] Chave encontrada:",
-        key
+  if (!entry) {
+    console.warn(
+      "[MCP Consent] Grupo de Preferências não encontrado."
     );
+    return null;
+  }
 
-    console.log(
-        "[MCP Consent] Valor:",
-        value
-    );
+  const [key, value] = entry;
 
-    return value;
+  console.log("[MCP Consent] Chave encontrada:", key);
+  console.log("[MCP Consent] Valor encontrado:", value);
+
+  return value;
 };
 
-export const getConsentStatus = (
-    SalesforceInteractions
-) => {
-    const consent =
-        getConsentFromPrivacyTools();
+export const getConsentStatus = (SalesforceInteractions) => {
+  const consent = getConsentFromPrivacyTools();
 
-    if (consent === "accepted") {
-        console.log(
-            "[MCP Consent] Preferências ACEITAS → OptIn"
-        );
+  console.log("[MCP Consent] Valor bruto:", consent);
 
-        return SalesforceInteractions
-            .ConsentStatus
-            .OptIn;
-    }
-
-    if (consent === "rejected") {
-        console.log(
-            "[MCP Consent] Preferências REJEITADAS → OptOut"
-        );
-
-        return SalesforceInteractions
-            .ConsentStatus
-            .OptOut;
-    }
-
-    console.warn(
-        "[MCP Consent] Consentimento não encontrado."
+  if (String(consent).toLowerCase() === "accepted") {
+    console.log(
+      "[MCP Consent] Preferências ACEITAS → OptIn"
     );
 
-    return null;
+    return SalesforceInteractions.ConsentStatus.OptIn;
+  }
+
+  if (String(consent).toLowerCase() === "rejected") {
+    console.log(
+      "[MCP Consent] Preferências REJEITADAS → OptOut"
+    );
+
+    return SalesforceInteractions.ConsentStatus.OptOut;
+  }
+
+  console.warn(
+    "[MCP Consent] Consentimento não reconhecido:",
+    consent
+  );
+
+  return null;
 };
