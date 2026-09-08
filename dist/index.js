@@ -39,6 +39,37 @@
     }
     return sdk;
   };
+  var hasMarketingConsent = () => {
+    const SalesforceInteractions2 = getSDK();
+    if (!SalesforceInteractions2) {
+      return false;
+    }
+    const consents = SalesforceInteractions2.getConsents?.() || [];
+    console.log(
+      "[MCP Consent] Consents atuais:",
+      consents
+    );
+    const personalizationPurpose = SalesforceInteractions2.mcis?.ConsentPurpose?.Personalization;
+    const personalizationConsent = consents.find(
+      (consent) => consent.purpose === personalizationPurpose
+    );
+    if (!personalizationConsent) {
+      console.warn(
+        "[MCP Consent] \u274C Sem consentimento de Personalization. Evento bloqueado."
+      );
+      return false;
+    }
+    const isOptIn = personalizationConsent.status === SalesforceInteractions2.ConsentStatus.OptIn;
+    console.log(
+      "[MCP Consent] Personalization:",
+      personalizationConsent.status
+    );
+    console.log(
+      "[MCP Consent] Autorizado:",
+      isOptIn
+    );
+    return isOptIn;
+  };
   var getCartRow = (element) => {
     if (!element) {
       return null;
@@ -62,7 +93,10 @@
       return null;
     }
     const cartRow = getCartRow(element);
-    const sources = [element, cartRow].filter(Boolean);
+    const sources = [
+      element,
+      cartRow
+    ].filter(Boolean);
     for (const source of sources) {
       const productId = source.getAttribute("data-product-id") || source.getAttribute("data-productid") || source.getAttribute("data-pid") || source.getAttribute("data-sku");
       if (productId) {
@@ -106,7 +140,9 @@
       );
       return null;
     }
-    const rawQuantity = quantityElement.getAttribute("data-quantity") || quantityElement.value || quantityElement.textContent || quantityElement.innerText;
+    const rawQuantity = quantityElement.getAttribute(
+      "data-quantity"
+    ) || quantityElement.value || quantityElement.textContent || quantityElement.innerText;
     const quantity = parseInt(
       String(rawQuantity).trim(),
       10
@@ -123,6 +159,12 @@
   var sendReplaceCart = (productId, quantity) => {
     const SalesforceInteractions2 = getSDK();
     if (!SalesforceInteractions2) {
+      return;
+    }
+    if (!hasMarketingConsent()) {
+      console.warn(
+        "[MCP Cart] \u{1F6AB} ReplaceCart BLOQUEADO por falta de consentimento."
+      );
       return;
     }
     if (!productId) {
@@ -156,7 +198,7 @@
       "[MCP Cart] ================================="
     );
     console.log(
-      "[MCP Cart] ENVIANDO REPLACE CART"
+      "[MCP Cart] \u2705 ENVIANDO REPLACE CART"
     );
     console.log(
       "[MCP Cart] Interaction:",
@@ -194,6 +236,12 @@
   var sendRemoveFromCart = (productId, quantity = 1) => {
     const SalesforceInteractions2 = getSDK();
     if (!SalesforceInteractions2) {
+      return;
+    }
+    if (!hasMarketingConsent()) {
+      console.warn(
+        "[MCP Cart] \u{1F6AB} RemoveFromCart BLOQUEADO por falta de consentimento."
+      );
       return;
     }
     if (!productId) {
@@ -485,10 +533,45 @@
       check();
     });
   };
+  var syncConsent = (SalesforceInteractions2) => {
+    const consentStatus = getConsentStatus(
+      SalesforceInteractions2
+    );
+    console.log(
+      "[MCP Consent] Status detectado:",
+      consentStatus
+    );
+    if (!consentStatus) {
+      console.warn(
+        "[MCP Consent] Nenhum consentimento identificado."
+      );
+      return null;
+    }
+    const consent = {
+      purpose: SalesforceInteractions2.mcis.ConsentPurpose.Personalization,
+      provider: "Gentrop",
+      status: consentStatus
+    };
+    console.log(
+      "[MCP Consent] Atualizando SDK:",
+      consent
+    );
+    SalesforceInteractions2.updateConsents?.([
+      consent
+    ]);
+    console.log(
+      "[MCP Consent] Consents depois do update:",
+      SalesforceInteractions2.getConsents?.()
+    );
+    return consentStatus;
+  };
   var initializeSDK = async (SalesforceInteractions2) => {
     if (window.__MCP_SALESFORCE_INITIALIZED) {
       console.log(
         "[MCP] SDK j\xE1 foi inicializado pelo MCP."
+      );
+      syncConsent(
+        SalesforceInteractions2
       );
       return SalesforceInteractions2;
     }
@@ -525,7 +608,7 @@
       );
     } else {
       console.warn(
-        "[MCP] Nenhum consentimento identificado."
+        "[MCP] Nenhum consentimento identificado no init."
       );
     }
     await SalesforceInteractions2.init(
@@ -552,6 +635,9 @@
     );
     console.log(
       "[MCP] ================================="
+    );
+    syncConsent(
+      SalesforceInteractions2
     );
     return SalesforceInteractions2;
   };

@@ -4,6 +4,9 @@ const CART_SELECTORS = {
   remove: ".item-link-remove, .icon-remove"
 };
 
+/**
+ * Obtém o SalesforceInteractions disponível no site.
+ */
 const getSDK = () => {
   const sdk = window.SalesforceInteractions;
 
@@ -16,6 +19,67 @@ const getSDK = () => {
   }
 
   return sdk;
+};
+
+/**
+ * Verifica se existe consentimento de Personalization
+ * e se o status atual é OptIn.
+ *
+ * IMPORTANTE:
+ * O MCP NÃO assume OptIn.
+ * Ele consulta o estado atual do SDK.
+ */
+const hasMarketingConsent = () => {
+  const SalesforceInteractions = getSDK();
+
+  if (!SalesforceInteractions) {
+    return false;
+  }
+
+  const consents =
+    SalesforceInteractions.getConsents?.() || [];
+
+  console.log(
+    "[MCP Consent] Consents atuais:",
+    consents
+  );
+
+  const personalizationPurpose =
+    SalesforceInteractions
+      .mcis
+      ?.ConsentPurpose
+      ?.Personalization;
+
+  const personalizationConsent =
+    consents.find(
+      (consent) =>
+        consent.purpose ===
+        personalizationPurpose
+    );
+
+  if (!personalizationConsent) {
+    console.warn(
+      "[MCP Consent] ❌ Sem consentimento de Personalization. Evento bloqueado."
+    );
+
+    return false;
+  }
+
+  const isOptIn =
+    personalizationConsent.status ===
+    SalesforceInteractions.ConsentStatus.OptIn;
+
+  console.log(
+    "[MCP Consent] Personalization:",
+    personalizationConsent.status
+  );
+
+  console.log(
+    "[MCP Consent] Autorizado:",
+    isOptIn
+  );
+
+  return isOptIn;
 };
 
 /**
@@ -51,8 +115,15 @@ const getProductId = (element) => {
 
   const cartRow = getCartRow(element);
 
-  const sources = [element, cartRow].filter(Boolean);
+  const sources = [
+    element,
+    cartRow
+  ].filter(Boolean);
 
+  /**
+   * Primeiro procura nos atributos
+   * conhecidos pelo site.
+   */
   for (const source of sources) {
     const productId =
       source.getAttribute("data-product-id") ||
@@ -65,15 +136,23 @@ const getProductId = (element) => {
     }
   }
 
+  /**
+   * Depois tenta encontrar pelo ID
+   * do elemento.
+   */
   for (const source of sources) {
-    const elementId = source.getAttribute("id");
+    const elementId =
+      source.getAttribute("id");
 
     if (!elementId) {
       continue;
     }
 
-    const parts = elementId.split("-");
-    const lastPart = parts[parts.length - 1];
+    const parts =
+      elementId.split("-");
+
+    const lastPart =
+      parts[parts.length - 1];
 
     if (lastPart) {
       return String(lastPart);
@@ -87,7 +166,8 @@ const getProductId = (element) => {
  * Obtém a quantidade atual do item.
  */
 const getCurrentQuantity = (element) => {
-  const cartRow = getCartRow(element);
+  const cartRow =
+    getCartRow(element);
 
   if (!cartRow) {
     console.warn(
@@ -97,15 +177,16 @@ const getCurrentQuantity = (element) => {
     return null;
   }
 
-  const quantityElement = cartRow.querySelector(
-    [
-      ".item-quantity-change-value",
-      ".quantity",
-      "[data-quantity]",
-      "input[type='number']",
-      "input"
-    ].join(", ")
-  );
+  const quantityElement =
+    cartRow.querySelector(
+      [
+        ".item-quantity-change-value",
+        ".quantity",
+        "[data-quantity]",
+        "input[type='number']",
+        "input"
+      ].join(", ")
+    );
 
   if (!quantityElement) {
     console.warn(
@@ -117,15 +198,18 @@ const getCurrentQuantity = (element) => {
   }
 
   const rawQuantity =
-    quantityElement.getAttribute("data-quantity") ||
+    quantityElement.getAttribute(
+      "data-quantity"
+    ) ||
     quantityElement.value ||
     quantityElement.textContent ||
     quantityElement.innerText;
 
-  const quantity = parseInt(
-    String(rawQuantity).trim(),
-    10
-  );
+  const quantity =
+    parseInt(
+      String(rawQuantity).trim(),
+      10
+    );
 
   if (Number.isNaN(quantity)) {
     console.warn(
@@ -142,19 +226,33 @@ const getCurrentQuantity = (element) => {
 /**
  * Envia ReplaceCart.
  *
- * Usado quando o usuário altera a quantidade
- * do produto, por exemplo:
+ * Exemplo:
  *
  * 3 -> 2
  * 2 -> 1
+ *
+ * O evento SOMENTE é enviado
+ * se houver OptIn.
  */
 const sendReplaceCart = (
   productId,
   quantity
 ) => {
-  const SalesforceInteractions = getSDK();
+  const SalesforceInteractions =
+    getSDK();
 
   if (!SalesforceInteractions) {
+    return;
+  }
+
+  /**
+   * BARRA DE CONSENTIMENTO
+   */
+  if (!hasMarketingConsent()) {
+    console.warn(
+      "[MCP Cart] 🚫 ReplaceCart BLOQUEADO por falta de consentimento."
+    );
+
     return;
   }
 
@@ -166,7 +264,8 @@ const sendReplaceCart = (
     return;
   }
 
-  const newQuantity = Number(quantity);
+  const newQuantity =
+    Number(quantity);
 
   if (
     !Number.isFinite(newQuantity) ||
@@ -191,7 +290,8 @@ const sendReplaceCart = (
 
       lineItem: {
         catalogObjectType: "Product",
-        catalogObjectId: String(productId),
+        catalogObjectId:
+          String(productId),
         quantity: newQuantity,
         price: 30.99,
         currency: "BRL"
@@ -204,7 +304,7 @@ const sendReplaceCart = (
   );
 
   console.log(
-    "[MCP Cart] ENVIANDO REPLACE CART"
+    "[MCP Cart] ✅ ENVIANDO REPLACE CART"
   );
 
   console.log(
@@ -254,16 +354,28 @@ const sendReplaceCart = (
 /**
  * Envia RemoveFromCart.
  *
- * Usado SOMENTE quando o usuário
- * clica na lixeira.
+ * O evento SOMENTE é enviado
+ * se houver OptIn.
  */
 const sendRemoveFromCart = (
   productId,
   quantity = 1
 ) => {
-  const SalesforceInteractions = getSDK();
+  const SalesforceInteractions =
+    getSDK();
 
   if (!SalesforceInteractions) {
+    return;
+  }
+
+  /**
+   * BARRA DE CONSENTIMENTO
+   */
+  if (!hasMarketingConsent()) {
+    console.warn(
+      "[MCP Cart] 🚫 RemoveFromCart BLOQUEADO por falta de consentimento."
+    );
+
     return;
   }
 
@@ -275,7 +387,8 @@ const sendRemoveFromCart = (
     return;
   }
 
-  const removeQuantity = Number(quantity);
+  const removeQuantity =
+    Number(quantity);
 
   if (
     !Number.isFinite(removeQuantity) ||
@@ -301,9 +414,11 @@ const sendRemoveFromCart = (
       lineItem: {
         catalogObjectType: "Product",
 
-        catalogObjectId: String(productId),
+        catalogObjectId:
+          String(productId),
 
-        quantity: removeQuantity
+        quantity:
+          removeQuantity
       }
     }
   };
@@ -369,14 +484,15 @@ const sendRemoveFromCart = (
  * clique no "-"
  * quantidade depois = 2
  *
- * Envia ReplaceCart com quantity = 2.
+ * Envia ReplaceCart quantity = 2.
  */
 const handleDecrementClick = (
   event
 ) => {
-  const button = event.target.closest(
-    CART_SELECTORS.decrement
-  );
+  const button =
+    event.target.closest(
+      CART_SELECTORS.decrement
+    );
 
   if (!button) {
     return;
@@ -386,7 +502,8 @@ const handleDecrementClick = (
     "[MCP Cart] 🔥 DECREMENTO CAPTURADO"
   );
 
-  const productId = getProductId(button);
+  const productId =
+    getProductId(button);
 
   console.log(
     "[MCP Cart] Product ID:",
@@ -442,14 +559,15 @@ const handleDecrementClick = (
  *
  * quantidade = 3
  * clique na lixeira
- * RemoveFromCart quantity = 3
+ * RemoveFromCart quantity = 3.
  */
 const handleRemoveClick = (
   event
 ) => {
-  const button = event.target.closest(
-    CART_SELECTORS.remove
-  );
+  const button =
+    event.target.closest(
+      CART_SELECTORS.remove
+    );
 
   if (!button) {
     return;
@@ -459,7 +577,8 @@ const handleRemoveClick = (
     "[MCP Cart] 🗑️ LIXEIRA CAPTURADA"
   );
 
-  const productId = getProductId(button);
+  const productId =
+    getProductId(button);
 
   console.log(
     "[MCP Cart] Product ID:",
@@ -485,7 +604,7 @@ const handleRemoveClick = (
 
   const quantityToRemove =
     currentQuantity &&
-      currentQuantity > 0
+    currentQuantity > 0
       ? currentQuantity
       : 1;
 
@@ -521,7 +640,8 @@ const installCartListeners = () => {
     true
   );
 
-  window.__MCP_CART_LISTENERS_INSTALLED = true;
+  window.__MCP_CART_LISTENERS_INSTALLED =
+    true;
 
   console.log(
     "[MCP Cart] ================================="
@@ -551,7 +671,9 @@ export const pageTypeGlobal = {
 
   listeners: [],
 
-  onActionEvent: (actionEvent) => {
+  onActionEvent: (
+    actionEvent
+  ) => {
     return actionEvent;
   }
 };
