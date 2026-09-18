@@ -4,59 +4,53 @@ const getConsentFromPrivacyTools = () => {
   const cookieManager = window.pToolsCookieManager;
 
   if (!cookieManager || !cookieManager.myCache) {
-    console.warn(
-      "[MCP Consent] pToolsCookieManager ainda não está disponível."
-    );
     return null;
   }
 
-  const entry = [...cookieManager.myCache.entries()].find(
-    ([key]) =>
-      String(key)
-        .toLowerCase()
-        .startsWith(CONSENT_GROUP_PREFIX.toLowerCase())
+  const entry = [...cookieManager.myCache.entries()].find(([key]) =>
+    String(key).toLowerCase().startsWith(CONSENT_GROUP_PREFIX.toLowerCase())
   );
 
-  if (!entry) {
-    console.warn(
-      "[MCP Consent] Grupo de Preferências não encontrado."
-    );
-    return null;
-  }
+  if (!entry) return null;
 
-  const [key, value] = entry;
-
-  console.log("[MCP Consent] Chave encontrada:", key);
-  console.log("[MCP Consent] Valor encontrado:", value);
-
+  const [, value] = entry;
   return value;
 };
 
-export const getConsentStatus = (SalesforceInteractions) => {
+export const getConsentStatus = () => {
   const consent = getConsentFromPrivacyTools();
 
-  console.log("[MCP Consent] Valor bruto:", consent);
-
   if (String(consent).toLowerCase() === "accepted") {
-    console.log(
-      "[MCP Consent] Preferências ACEITAS → OptIn"
-    );
-
-    return SalesforceInteractions.ConsentStatus.OptIn;
+    console.log("%c[MCP Consent] Utilizador ACEITOU os cookies -> OptIn (Eventos ATIVOS)", "color: green; font-weight: bold;");
+    return window.SalesforceInteractions.ConsentStatus.OptIn;
   }
 
   if (String(consent).toLowerCase() === "rejected") {
-    console.log(
-      "[MCP Consent] Preferências REJEITADAS → OptOut"
-    );
-
-    return SalesforceInteractions.ConsentStatus.OptOut;
+    console.log("%c[MCP Consent] Utilizador REJEITOU os cookies -> OptOut (Eventos BLOQUEADOS)", "color: red; font-weight: bold;");
+    return window.SalesforceInteractions.ConsentStatus.OptOut;
   }
 
-  console.warn(
-    "[MCP Consent] Consentimento não reconhecido:",
-    consent
-  );
+  console.warn("%c[MCP Consent] Consentimento pendente -> Definindo OptOut por padrão", "color: orange; font-weight: bold;");
+  return window.SalesforceInteractions.ConsentStatus.OptOut;
+};
 
-  return null;
+// Escuta a interação dinâmica no banner de cookies em tempo real
+export const listenToConsentChanges = () => {
+  document.addEventListener("click", (e) => {
+    // Aguarda a atualização do cookieManager após o clique no banner
+    setTimeout(() => {
+      const currentStatus = getConsentStatus();
+      
+      if (window.SalesforceInteractions && typeof window.SalesforceInteractions.updateConsents === "function") {
+        window.SalesforceInteractions.updateConsents([
+          {
+            purpose: window.SalesforceInteractions.mcis.ConsentPurpose.Personalization,
+            provider: "Gentrop",
+            status: currentStatus
+          }
+        ]);
+        console.log("[MCP Consent] Consentimento atualizado dinamicamente via updateConsents().");
+      }
+    }, 500);
+  });
 };
